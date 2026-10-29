@@ -147,4 +147,16 @@ if st.session_state.running:
         title="🤖 로봇 발바닥 내 ZMP 지키기 (파란 상자 이탈 시 게임 오버)",
         xaxis=dict(title="좌 / 우 (X축)", range=[-FOOT_HALF*1.5, FOOT_HALF*1.5]),
         yaxis=dict(title="뒤 / 앞 (Y축)", range=[-FOOT_HALF*1.5, FOOT_HALF*1.5]),
-        width=6
+        width=600, height=500,
+        showlegend=True
+    )
+
+    plot_ph.plotly_chart(fig, use_container_width=True)
+
+    if is_game_over:
+        st.session_state.running = False
+        st.error(f"💥 로봇이 중심을 잃고 넘어졌습니다! (버틴 시간: {st.session_state.time:.1f}초)")
+        st.info("💡 다시 도전하려면 상단의 **'🔄 처음부터 다시하기'** 버튼을 누르세요!")
+    else:
+        time.sleep(0.1)
+        st.rerun()
