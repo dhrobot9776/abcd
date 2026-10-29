@@ -1,7 +1,6 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-import time
 import random
 
 # ==========================================
@@ -43,7 +42,7 @@ STEP_SIZE = 0.04
 is_ice_mode = False
 
 if "🔥 극한" in DIFFICULTY:
-    FOOT_HALF = 0.10  # 발바닥 축소
+    FOOT_HALF = 0.10
 if "🧊 빙판길" in DIFFICULTY:
     is_ice_mode = True
     STEP_SIZE = 0.015
@@ -86,17 +85,15 @@ def reset_game():
     st.session_state.wind_y = 0.0
 
 # ==========================================
-# 4. 상단 컨트롤 패널 및 WASD 조종판
+# 4. 상단 고정 컨트롤 패널 및 WASD 리모컨
 # ==========================================
 col_s1, col_s2, _ = st.columns([1.5, 1.5, 3])
 with col_s1:
     if st.button("▶️ 게임 시작!", use_container_width=True, type="primary"):
         reset_game()
-        st.rerun()
 with col_s2:
     if st.button("🔄 다시 하기", use_container_width=True):
         reset_game()
-        st.rerun()
 
 st.subheader("🎮 3D 로봇 관절 조종 리모컨")
 p_col1, p_col2, p_col3 = st.columns([1, 1, 1])
@@ -134,13 +131,15 @@ else:
         if st.button("⬇️ S (뒤 추진력)", use_container_width=True):
             st.session_state.vy_com -= STEP_SIZE
 
-metrics_ph = st.empty()
-plot_ph = st.empty()
+# ==========================================
+# 5. 프래그먼트 엔진 (@st.fragment: 3D 화면만 독립 새로고침)
+# ==========================================
+@st.fragment(run_every=0.1)
+def render_game_fragment():
+    if not st.session_state.running:
+        st.info("💡 상단의 **'▶️ 게임 시작!'** 버튼을 누르면 3D 시뮬레이션이 시작됩니다.")
+        return
 
-# ==========================================
-# 5. 게임 엔진 및 3D 그래픽 렌더링
-# ==========================================
-if st.session_state.running:
     st.session_state.time += 0.1
 
     time_factor = 1.0 + (st.session_state.time * 0.02)
@@ -169,38 +168,28 @@ if st.session_state.running:
 
     is_game_over = (abs(x_zmp) > FOOT_HALF or abs(y_zmp) > FOOT_HALF)
 
-    with metrics_ph.container():
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("⏱️ 버틴 시간", f"{st.session_state.time:.1f} 초")
-        m2.metric("🌪️ 바람 세기", f"{current_wind_power:.2f}x")
-        m3.metric("🟢 로봇 무게중심(CoM)", f"X: {st.session_state.x_com:+.2f} | Y: {st.session_state.y_com:+.2f}")
-        m4.metric("🔴 3D ZMP 위치", f"X: {x_zmp:+.2f} | Y: {y_zmp:+.2f}")
+    # 수치 전광판
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("⏱️ 버틴 시간", f"{st.session_state.time:.1f} 초")
+    m2.metric("🌪️ 바람 세기", f"{current_wind_power:.2f}x")
+    m3.metric("🟢 로봇 무게중심(CoM)", f"X: {st.session_state.x_com:+.2f} | Y: {st.session_state.y_com:+.2f}")
+    m4.metric("🔴 3D ZMP 위치", f"X: {x_zmp:+.2f} | Y: {y_zmp:+.2f}")
 
-    # ==========================================
-    # 6. 3D 로봇 동역학 뼈대 및 관절 좌표 연산
-    # ==========================================
+    # 3D 관절 연산
     xc, yc = st.session_state.x_com, st.session_state.y_com
     
-    # 3D 관절 좌표 정의 (Height Z)
-    z_foot = 0.0
-    z_hip = 0.35
-    z_chest = 0.55
-    z_head = 0.70
+    z_foot, z_hip, z_chest, z_head = 0.0, 0.35, 0.55, 0.70
 
-    # 발바닥 고정 위치 (왼발, 오른발)
     left_foot = [-0.07, 0, z_foot]
     right_foot = [0.07, 0, z_foot]
 
-    # 골반/허리 (무게중심 연동)
     hip_center = [xc, yc, z_hip]
     hip_left = [xc - 0.06, yc, z_hip]
     hip_right = [xc + 0.06, yc, z_hip]
 
-    # 가슴 및 머리 (상체 기울임 연동)
     chest = [xc * 1.25, yc * 1.25, z_chest]
     head = [xc * 1.45, yc * 1.45, z_head]
 
-    # 어깨 및 손 관절
     shoulder_left = [xc * 1.25 - 0.12, yc * 1.25, z_chest]
     shoulder_right = [xc * 1.25 + 0.12, yc * 1.25, z_chest]
     hand_left = [xc * 1.35 - 0.18, yc * 1.35 - 0.08, z_chest - 0.12]
@@ -208,7 +197,7 @@ if st.session_state.running:
 
     fig = go.Figure()
 
-    # 1) 3D 발바닥 지지 영역 (바닥 파란 상자)
+    # 3D 발바닥 지지 영역
     bx = [-FOOT_HALF, FOOT_HALF, FOOT_HALF, -FOOT_HALF, -FOOT_HALF]
     by = [-FOOT_HALF, -FOOT_HALF, FOOT_HALF, FOOT_HALF, -FOOT_HALF]
     bz = [0, 0, 0, 0, 0]
@@ -219,13 +208,10 @@ if st.session_state.running:
         line=dict(color='DeepSkyBlue', width=8)
     ))
 
-    # 2) 3D 로봇 뼈대 (선 연결)
+    # 3D 로봇 뼈대
     skeleton_lines = [
-        # 왼다리, 오른다리, 골반
         [left_foot, hip_left], [right_foot, hip_right], [hip_left, hip_right],
-        # 척추 (골반 -> 가슴 -> 머리)
         [hip_center, chest], [chest, head],
-        # 어깨 및 팔
         [shoulder_left, shoulder_right], [shoulder_left, hand_left], [shoulder_right, hand_right]
     ]
 
@@ -239,7 +225,7 @@ if st.session_state.running:
             line=dict(color='Turquoise', width=7)
         ))
 
-    # 3) 3D 로봇 주요 관절 및 머리 (구형 마커)
+    # 3D 관절
     joints_x = [head[0], chest[0], hip_center[0], hand_left[0], hand_right[0], left_foot[0], right_foot[0]]
     joints_y = [head[1], chest[1], hip_center[1], hand_left[1], hand_right[1], left_foot[1], right_foot[1]]
     joints_z = [head[2], chest[2], hip_center[2], hand_left[2], hand_right[2], left_foot[2], right_foot[2]]
@@ -251,7 +237,7 @@ if st.session_state.running:
         marker=dict(size=[16, 10, 12, 8, 8, 10, 10], color='SpringGreen', symbol='circle')
     ))
 
-    # 4) 3D ZMP (바닥에 투영된 영모멘트점)
+    # 3D ZMP
     fig.add_trace(go.Scatter3d(
         x=[x_zmp], y=[y_zmp], z=[0],
         mode='markers+text',
@@ -260,7 +246,6 @@ if st.session_state.running:
         marker=dict(size=12, color='Crimson', symbol='diamond')
     ))
 
-    # 3D 카메라 및 레이아웃 설정
     fig.update_layout(
         title=f"🤖 [{DIFFICULTY}] 3D 휴머노이드 로봇 시뮬레이터",
         scene=dict(
@@ -269,14 +254,14 @@ if st.session_state.running:
             zaxis=dict(title="Z축 (높이)", range=[0, 0.85]),
             aspectmode='cube',
             camera=dict(
-                eye=dict(x=1.3, y=-1.4, z=0.9)  # 3D 입체 카메라 시점
+                eye=dict(x=1.3, y=-1.4, z=0.9)
             )
         ),
         height=550,
         margin=dict(l=0, r=0, b=0, t=40)
     )
 
-    plot_ph.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     if is_game_over:
         st.session_state.running = False
@@ -284,6 +269,6 @@ if st.session_state.running:
         if st.session_state.time > 20.0:
             st.balloons()
             st.success("🎉 대단합니다! 3D 시뮬레이션에서 20초 이상 생존하셨습니다!")
-    else:
-        time.sleep(0.1)
-        st.rerun()
+
+# 프래그먼트 실행
+render_game_fragment()
