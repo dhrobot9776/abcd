@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import random
 
 # ==========================================
-# 1. 페이지 및 타이틀 설정 🤖
+# 1. 페이지 설정 및 커스텀 폰트/CSS 적용 🎨
 # ==========================================
 st.set_page_config(
     page_title="🤖 3D 휴머노이드 로봇 중심 잡기 게임",
@@ -12,7 +12,46 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🤖 3D 휴머노이드 로봇 균형 제어 시뮬레이터 (하드모드)")
+# Pretendard 웹 폰트 및 스타일링 주입
+st.markdown("""
+    <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+    html, body, [class*="css"], [class*="st-"], div, button, input {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
+    }
+
+    h1 {
+        font-weight: 800 !important;
+        letter-spacing: -0.8px !important;
+        color: #1E293B !important;
+    }
+    h2, h3 {
+        font-weight: 700 !important;
+        letter-spacing: -0.5px !important;
+    }
+
+    div.stButton > button {
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        border-radius: 8px !important;
+        border: 1px solid #CBD5E1 !important;
+        transition: all 0.15s ease-in-out !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-weight: 800 !important;
+        font-size: 1.4rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🤖 3D 휴머노이드 로봇 균형 제어 시뮬레이터")
 
 # ==========================================
 # 2. 튜토리얼 / 안내
@@ -28,8 +67,29 @@ with st.expander("📖 **[3D 게임 조작법 및 안내] (클릭해서 열기/�
 st.divider()
 
 # ==========================================
-# 3. 세션 및 난이도 초기화
+# 3. 세션 변수 안전 초기화 (KeyError 방지)
 # ==========================================
+def init_session_state():
+    defaults = {
+        'running': False,
+        'is_game_over': False,
+        'time': 0.0,
+        'x_com': 0.0,
+        'y_com': 0.0,
+        'vx_com': 0.0,
+        'vy_com': 0.0,
+        'wind_x': 0.0,
+        'wind_y': 0.0,
+        'c_uses': 3,
+        'last_c_time': -10.0
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+init_session_state()
+
+# 난이도 선택 설정
 st.sidebar.header("⚙️ 난이도 선택")
 DIFFICULTY = st.sidebar.selectbox(
     "게임 모드 선택",
@@ -56,29 +116,6 @@ diff_power_map = {
 }
 BASE_WIND_POWER = diff_power_map[DIFFICULTY]
 
-if 'running' not in st.session_state:
-    st.session_state.running = False
-if 'is_game_over' not in st.session_state:
-    st.session_state.is_game_over = False
-if 'time' not in st.session_state:
-    st.session_state.time = 0.0
-if 'x_com' not in st.session_state:
-    st.session_state.x_com = 0.0
-if 'y_com' not in st.session_state:
-    st.session_state.y_com = 0.0
-if 'vx_com' not in st.session_state:
-    st.session_state.vx_com = 0.0
-if 'vy_com' not in st.session_state:
-    st.session_state.vy_com = 0.0
-if 'wind_x' not in st.session_state:
-    st.session_state.wind_x = 0.0
-if 'wind_y' not in st.session_state:
-    st.session_state.wind_y = 0.0
-if 'c_uses' not in st.session_state:
-    st.session_state.c_uses = 3
-if 'last_c_time' not in st.session_state:
-    st.session_state.last_c_time = -10.0
-
 def reset_game():
     st.session_state.running = True
     st.session_state.is_game_over = False
@@ -94,7 +131,6 @@ def reset_game():
     st.session_state.wind_x = np.cos(angle) * 0.08
     st.session_state.wind_y = np.sin(angle) * 0.08
 
-# 메쉬 3D 박스 생성 함수
 def create_3d_box(cx, cy, cz, dx, dy, dz, color, opacity=0.85, name=""):
     x = [cx-dx, cx+dx, cx+dx, cx-dx, cx-dx, cx+dx, cx+dx, cx-dx]
     y = [cy-dy, cy-dy, cy+dy, cy+dy, cy-dy, cy-dy, cy+dy, cy+dy]
@@ -104,7 +140,6 @@ def create_3d_box(cx, cy, cz, dx, dy, dz, color, opacity=0.85, name=""):
     k = [2, 3, 6, 7, 5, 4, 6, 7, 7, 3, 6, 2]
     return go.Mesh3d(x=x, y=y, z=z, i=i, j=j, k=k, color=color, opacity=opacity, name=name, showlegend=False)
 
-# 상단 시작/다시하기 버튼
 col_s1, col_s2, _ = st.columns([1.5, 1.5, 3])
 with col_s1:
     if st.button("▶️ 게임 시작!", use_container_width=True, type="primary"):
@@ -114,115 +149,114 @@ with col_s2:
         reset_game()
 
 # ==========================================
-# 4. 실시간 프래그먼트 엔진 (리모컨 통합)
+# 4. 실시간 프래그먼트 엔진 (KeyError 완전 방지)
 # ==========================================
 @st.fragment(run_every=0.2)
 def render_game_fragment():
-    # --------------------------------------
-    # A. 실시간 WASD / C 조종 패드 (통합 위치)
-    # --------------------------------------
+    # 세션 변수 재검증 (안전장치)
+    init_session_state()
+
+    # .get() 메서드를 사용해 캐시 초기화 시 KeyError 발생 방지
+    current_time = st.session_state.get('time', 0.0)
+    last_c_time = st.session_state.get('last_c_time', -10.0)
+    c_uses = st.session_state.get('c_uses', 3)
+    is_running = st.session_state.get('running', False)
+    
     st.subheader("🎮 3D 휴머노이드 조종 리모컨")
     p_col1, p_col2, p_col3 = st.columns([1, 1, 1])
 
-    # C 버튼 쿨타임 연산 (5초 쿨타임)
-    cooldown_left = max(0.0, 5.0 - (st.session_state.time - st.session_state.last_c_time))
-    c_disabled = (st.session_state.c_uses <= 0) or (cooldown_left > 0) or (not st.session_state.running)
+    cooldown_left = max(0.0, 5.0 - (current_time - last_c_time))
+    c_disabled = (c_uses <= 0) or (cooldown_left > 0) or (not is_running)
 
-    if st.session_state.c_uses <= 0:
+    if c_uses <= 0:
         c_label = "🎯 C (횟수 소진됨)"
     elif cooldown_left > 0:
         c_label = f"⏳ C 쿨타임 ({cooldown_left:.1f}초)"
     else:
-        c_label = f"🎯 C 스킬 (남은 횟수: {st.session_state.c_uses})"
+        c_label = f"🎯 C 스킬 (남은 횟수: {c_uses})"
 
     if not is_ice_mode:
         with p_col2:
-            if st.button("⬆️ W (앞으로)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.y_com = min(FOOT_HALF, st.session_state.y_com + STEP_SIZE)
+            if st.button("⬆️ W (앞으로)", use_container_width=True, disabled=not is_running):
+                st.session_state.y_com = min(FOOT_HALF, st.session_state.get('y_com', 0.0) + STEP_SIZE)
         with p_col1:
-            if st.button("⬅️ A (왼쪽으로)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.x_com = max(-FOOT_HALF, st.session_state.x_com - STEP_SIZE)
+            if st.button("⬅️ A (왼쪽으로)", use_container_width=True, disabled=not is_running):
+                st.session_state.x_com = max(-FOOT_HALF, st.session_state.get('x_com', 0.0) - STEP_SIZE)
         with p_col2:
             if st.button(c_label, use_container_width=True, disabled=c_disabled):
                 st.session_state.x_com, st.session_state.y_com = 0.0, 0.0
-                st.session_state.c_uses -= 1
-                st.session_state.last_c_time = st.session_state.time
+                st.session_state.c_uses = c_uses - 1
+                st.session_state.last_c_time = current_time
         with p_col3:
-            if st.button("➡️ D (오른쪽으로)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.x_com = min(FOOT_HALF, st.session_state.x_com + STEP_SIZE)
+            if st.button("➡️ D (오른쪽으로)", use_container_width=True, disabled=not is_running):
+                st.session_state.x_com = min(FOOT_HALF, st.session_state.get('x_com', 0.0) + STEP_SIZE)
         with p_col2:
-            if st.button("⬇️ S (뒤로)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.y_com = max(-FOOT_HALF, st.session_state.y_com - STEP_SIZE)
+            if st.button("⬇️ S (뒤로)", use_container_width=True, disabled=not is_running):
+                st.session_state.y_com = max(-FOOT_HALF, st.session_state.get('y_com', 0.0) - STEP_SIZE)
     else:
         with p_col2:
-            if st.button("⬆️ W (앞 추진력)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.vy_com += STEP_SIZE
+            if st.button("⬆️ W (앞 추진력)", use_container_width=True, disabled=not is_running):
+                st.session_state.vy_com = st.session_state.get('vy_com', 0.0) + STEP_SIZE
         with p_col1:
-            if st.button("⬅️ A (좌 추진력)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.vx_com -= STEP_SIZE
+            if st.button("⬅️ A (좌 추진력)", use_container_width=True, disabled=not is_running):
+                st.session_state.vx_com = st.session_state.get('vx_com', 0.0) - STEP_SIZE
         with p_col2:
             if st.button(c_label, use_container_width=True, disabled=c_disabled):
                 st.session_state.vx_com, st.session_state.vy_com = 0.0, 0.0
-                st.session_state.c_uses -= 1
-                st.session_state.last_c_time = st.session_state.time
+                st.session_state.c_uses = c_uses - 1
+                st.session_state.last_c_time = current_time
         with p_col3:
-            if st.button("➡️ D (우 추진력)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.vx_com += STEP_SIZE
+            if st.button("➡️ D (우 추진력)", use_container_width=True, disabled=not is_running):
+                st.session_state.vx_com = st.session_state.get('vx_com', 0.0) + STEP_SIZE
         with p_col2:
-            if st.button("⬇️ S (뒤 추진력)", use_container_width=True, disabled=not st.session_state.running):
-                st.session_state.vy_com -= STEP_SIZE
+            if st.button("⬇️ S (뒤 추진력)", use_container_width=True, disabled=not is_running):
+                st.session_state.vy_com = st.session_state.get('vy_com', 0.0) - STEP_SIZE
 
     st.divider()
 
-    # --------------------------------------
-    # B. 게임 엔진 루프 연산
-    # --------------------------------------
-    if not st.session_state.running:
-        if st.session_state.is_game_over:
-            st.error(f"💥 3D 로봇이 중심을 잃고 넘어졌습니다! (최종 생존 시간: {st.session_state.time:.1f}초)")
-            if st.session_state.time >= 15.0:
+    if not is_running:
+        if st.session_state.get('is_game_over', False):
+            st.error(f"💥 3D 로봇이 중심을 잃고 넘어졌습니다! (최종 생존 시간: {current_time:.1f}초)")
+            if current_time >= 15.0:
                 st.balloons()
-                st.success(f"🎉 대단합니다! {st.session_state.time:.1f}초 동안 성공적으로 균형을 잡으셨습니다!")
+                st.success(f"🎉 대단합니다! {current_time:.1f}초 동안 성공적으로 균형을 잡으셨습니다!")
             else:
                 st.info("💡 다시 도전하려면 상단의 **'▶️ 게임 시작!'** 버튼을 누르세요!")
         else:
             st.info("💡 상단의 **'▶️ 게임 시작!'** 버튼을 누르면 3D 시뮬레이션이 시작됩니다.")
         return
 
-    st.session_state.time += 0.2
+    st.session_state.time = current_time + 0.2
 
     time_factor = 1.0 + (st.session_state.time * 0.03)
     current_wind_power = BASE_WIND_POWER * time_factor
 
-    st.session_state.wind_x += (random.random() - 0.48) * current_wind_power * 0.035
-    st.session_state.wind_y += (random.random() - 0.48) * current_wind_power * 0.035
+    st.session_state.wind_x = st.session_state.get('wind_x', 0.0) + (random.random() - 0.48) * current_wind_power * 0.035
+    st.session_state.wind_y = st.session_state.get('wind_y', 0.0) + (random.random() - 0.48) * current_wind_power * 0.035
     
     st.session_state.wind_x *= 0.98
     st.session_state.wind_y *= 0.98
 
     if is_ice_mode:
-        st.session_state.x_com += st.session_state.vx_com
-        st.session_state.y_com += st.session_state.vy_com
-        st.session_state.vx_com *= 0.88
-        st.session_state.vy_com *= 0.88
+        st.session_state.x_com = st.session_state.get('x_com', 0.0) + st.session_state.get('vx_com', 0.0)
+        st.session_state.y_com = st.session_state.get('y_com', 0.0) + st.session_state.get('vy_com', 0.0)
+        st.session_state.vx_com = st.session_state.get('vx_com', 0.0) * 0.88
+        st.session_state.vy_com = st.session_state.get('vy_com', 0.0) * 0.88
 
-    x_zmp = st.session_state.x_com + st.session_state.wind_x
-    y_zmp = st.session_state.y_com + st.session_state.wind_y
+    x_zmp = st.session_state.get('x_com', 0.0) + st.session_state.get('wind_x', 0.0)
+    y_zmp = st.session_state.get('y_com', 0.0) + st.session_state.get('wind_y', 0.0)
 
     if abs(x_zmp) > FOOT_HALF or abs(y_zmp) > FOOT_HALF:
         st.session_state.running = False
         st.session_state.is_game_over = True
 
-    # --------------------------------------
-    # C. 대시보드 및 3D 그래픽 시각화
-    # --------------------------------------
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("⏱️ 버틴 시간", f"{st.session_state.time:.1f} 초")
     m2.metric("🌪️ 바람 세기", f"{current_wind_power:.2f}x")
-    m3.metric("🟢 로봇 무게중심(CoM)", f"X: {st.session_state.x_com:+.2f} | Y: {st.session_state.y_com:+.2f}")
+    m3.metric("🟢 로봇 무게중심(CoM)", f"X: {st.session_state.get('x_com', 0.0):+.2f} | Y: {st.session_state.get('y_com', 0.0):+.2f}")
     m4.metric("🔴 3D ZMP 위치", f"X: {x_zmp:+.2f} | Y: {y_zmp:+.2f}")
 
-    xc, yc = st.session_state.x_com, st.session_state.y_com
+    xc, yc = st.session_state.get('x_com', 0.0), st.session_state.get('y_com', 0.0)
     
     left_foot, right_foot = [-0.08, 0.0, 0.01], [0.08, 0.0, 0.01]
     left_knee, right_knee = [-0.075 + xc * 0.4, yc * 0.4, 0.18], [0.075 + xc * 0.4, yc * 0.4, 0.18]
@@ -241,7 +275,6 @@ def render_game_fragment():
 
     fig = go.Figure()
 
-    # 3D 발바닥 영역
     bx = [-FOOT_HALF, FOOT_HALF, FOOT_HALF, -FOOT_HALF, -FOOT_HALF]
     by = [-FOOT_HALF, -FOOT_HALF, FOOT_HALF, FOOT_HALF, -FOOT_HALF]
     bz = [0, 0, 0, 0, 0]
@@ -250,14 +283,12 @@ def render_game_fragment():
         line=dict(color='DeepSkyBlue', width=8)
     ))
 
-    # 3D 휴머노이드 솔리드 파트
     fig.add_trace(create_3d_box(chest[0], chest[1], chest[2], 0.09, 0.06, 0.07, color='#00D2FF', opacity=0.9, name='가슴 장갑'))
     fig.add_trace(create_3d_box(hip_center[0], hip_center[1], hip_center[2], 0.07, 0.05, 0.04, color='#34495E', opacity=0.95, name='골반 메쉬'))
     fig.add_trace(create_3d_box(head[0], head[1], head[2], 0.05, 0.05, 0.05, color='#ECEFF1', opacity=0.95, name='머리 헬멧'))
     fig.add_trace(create_3d_box(left_foot[0], left_foot[1], left_foot[2], 0.03, 0.07, 0.015, color='#1A252F', opacity=1.0))
     fig.add_trace(create_3d_box(right_foot[0], right_foot[1], right_foot[2], 0.03, 0.07, 0.015, color='#1A252F', opacity=1.0))
 
-    # 관절 뼈대 선
     skeleton_lines = [
         [left_foot, left_knee], [left_knee, hip_left],
         [right_foot, right_knee], [right_knee, hip_right],
@@ -273,7 +304,6 @@ def render_game_fragment():
             mode='lines', showlegend=False, line=dict(color='#00F5FF', width=7)
         ))
 
-    # 관절 마커 및 LED 센서
     joint_nodes_x = [shoulder_left[0], shoulder_right[0], elbow_left[0], elbow_right[0], left_knee[0], right_knee[0], hand_left[0], hand_right[0]]
     joint_nodes_y = [shoulder_left[1], shoulder_right[1], elbow_left[1], elbow_right[1], left_knee[1], right_knee[1], hand_left[1], hand_right[1]]
     joint_nodes_z = [shoulder_left[2], shoulder_right[2], elbow_left[2], elbow_right[2], left_knee[2], right_knee[2], hand_left[2], hand_right[2]]
@@ -288,7 +318,6 @@ def render_game_fragment():
         marker=dict(size=9, color='#FF1744', symbol='diamond')
     ))
 
-    # 3D ZMP
     fig.add_trace(go.Scatter3d(
         x=[x_zmp], y=[y_zmp], z=[0], mode='markers+text', name='🔴 3D ZMP (영모멘트점)',
         text=['🔴 ZMP'], textposition="top center",
@@ -296,7 +325,10 @@ def render_game_fragment():
     ))
 
     fig.update_layout(
-        title=f"🤖 [{DIFFICULTY}] 입체 휴머노이드 로봇 시뮬레이터",
+        title=dict(
+            text=f"🤖 [{DIFFICULTY}] 입체 휴머노이드 로봇 시뮬레이터",
+            font=dict(family="Pretendard", size=18, color="#1E293B")
+        ),
         scene=dict(
             xaxis=dict(title="X축 (좌/우)", range=[-0.35, 0.35]),
             yaxis=dict(title="Y축 (뒤/앞)", range=[-0.35, 0.35]),
