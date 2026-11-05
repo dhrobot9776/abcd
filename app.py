@@ -12,15 +12,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# Pretendard 웹 폰트 및 스타일링 주입
+# Streamlit 아이콘 폰트를 훼손하지 않는 안전한 Pretendard 폰트 주입
 st.markdown("""
     <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
-    html, body, [class*="css"], [class*="st-"], div, button, input {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
+    /* 아이콘 전용 폰트를 제외한 일반 텍스트 요소에만 Pretendard 적용 */
+    html, body, p, label, button, input, textarea, select,
+    h1, h2, h3, h4, h5, h6, [data-testid="stMarkdownContainer"] p {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif !important;
     }
 
+    /* 메인 타이틀 및 헤더 스타일링 */
     h1 {
         font-weight: 800 !important;
         letter-spacing: -0.8px !important;
@@ -31,6 +34,7 @@ st.markdown("""
         letter-spacing: -0.5px !important;
     }
 
+    /* 리모컨 버튼 스타일링 */
     div.stButton > button {
         font-weight: 700 !important;
         font-size: 0.95rem !important;
@@ -44,6 +48,7 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
     }
 
+    /* 전광판 수치 강조 */
     [data-testid="stMetricValue"] {
         font-weight: 800 !important;
         font-size: 1.4rem !important;
@@ -56,7 +61,7 @@ st.title("🤖 3D 휴머노이드 로봇 균형 제어 시뮬레이터")
 # ==========================================
 # 2. 튜토리얼 / 안내
 # ==========================================
-with st.expander("📖 **[3D 게임 조작법 및 안내] (클릭해서 열기/접기)**", expanded=False):
+with st.expander("📖 3D 게임 조작법 및 안내 (클릭해서 열기/접기)", expanded=False):
     st.markdown("""
     ### 🎮 3D 시뮬레이션 주요 안내
     1. **경고**: 가만히 서 있으면 불어오는 바람에 의해 **3~5초 안에 무조건 넘어집니다!**
@@ -149,14 +154,12 @@ with col_s2:
         reset_game()
 
 # ==========================================
-# 4. 실시간 프래그먼트 엔진 (KeyError 완전 방지)
+# 4. 실시간 프래그먼트 엔진
 # ==========================================
 @st.fragment(run_every=0.2)
 def render_game_fragment():
-    # 세션 변수 재검증 (안전장치)
     init_session_state()
 
-    # .get() 메서드를 사용해 캐시 초기화 시 KeyError 발생 방지
     current_time = st.session_state.get('time', 0.0)
     last_c_time = st.session_state.get('last_c_time', -10.0)
     c_uses = st.session_state.get('c_uses', 3)
